@@ -77,7 +77,10 @@ auto main( int argc, char** argv ) -> int
   wasm_runtime_init();
 
   /* parse the WASM file from buffer and create a WASM module */
-  module = wasm_runtime_load( (uint8_t*)bytecode->data(), bytecode->size(), error_buf, sizeof( error_buf ) );
+  module = wasm_runtime_load( reinterpret_cast< uint8_t* >( bytecode->data() ),
+                              bytecode->size(),
+                              error_buf,
+                              sizeof( error_buf ) );
   if( !module )
   {
     std::print( stderr, "unable to load wasm runtime: {}\n", error_buf );
