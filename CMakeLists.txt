@@ -1,15 +1,8 @@
 cmake_minimum_required(VERSION 3.19.0)
-cmake_policy(VERSION 3.19.0...3.27.4)
+cmake_policy(VERSION 3.19.0...3.31.6)
 
-file(WRITE ${CMAKE_BINARY_DIR}/config.cmake [=[
-hunter_config(iwasm
-  URL "https://github.com/bytecodealliance/wasm-micro-runtime/archive/c30e65ba5d2bb4c1b96e23dfaa74e498fc3ac3a3.tar.gz"
-  SHA1 "05eaf0c7aa751b775482498a2a2563466a6ebb49"
-)
-]=])
-
-set(HUNTER_PACKAGES iwasm)
-set(HUNTER_FILEPATH_CONFIG ${CMAKE_BINARY_DIR}/config.cmake)
+set(HUNTER_PACKAGES zstd libxml2 ZLIB LLVM)
+set(HUNTER_FILEPATH_CONFIG ${CMAKE_CURRENT_LIST_DIR}/data/hunter/config.cmake)
 
 include(FetchContent)
 FetchContent_Declare(SetupHunter GIT_REPOSITORY https://github.com/cpp-pm/gate)
@@ -27,10 +20,11 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-set(CMAKE_CXX_VISIBILITY_PRESET hidden)
-set(Boost_NO_BOOST_CMAKE ON)
+find_package(zstd CONFIG REQUIRED)
+find_package(libxml2 CONFIG REQUIRED)
+find_Package(ZLIB CONFIG REQUIRED)
+find_package(LLVM CONFIG REQUIRED)
 
-find_package(iwasm CONFIG REQUIRED)
+add_subdirectory(external)
+add_subdirectory(src)
 
-add_executable(wasmrunner main.cpp)
-target_link_libraries(wasmrunner PRIVATE iwasm::vmlib)
