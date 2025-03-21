@@ -1,12 +1,33 @@
 #include <chrono>
 #include <expected>
 #include <fstream>
+#include <iostream>
 #include <print>
 #include <vector>
 #include <wasm_c_api.h>
 #include <wasm_export.h>
 
 using namespace std::chrono_literals;
+
+template< typename Func, typename... Params >
+static auto time( Func f, Params&&... args )
+{
+  auto start  = std::chrono::steady_clock::now();
+  auto result = f( std::forward< Params >( args )... );
+  auto stop   = std::chrono::steady_clock::now();
+  std::println( "-> elapsed time: {:.6f}s", ( stop - start ) / 1.0s );
+  return result;
+}
+
+template< typename Func, typename... Params >
+  requires std::is_same_v< std::invoke_result_t< Func >, void >
+static auto time( Func f, Params&&... args )
+{
+  auto start = std::chrono::steady_clock::now();
+  f( std::forward< Params >( args )... );
+  auto stop = std::chrono::steady_clock::now();
+  std::println( "-> elapsed time: {:.6f}s", ( stop - start ) / 1.0s );
+}
 
 enum class file_error
 {
@@ -48,12 +69,12 @@ auto main( int argc, char** argv ) -> int
 
   if( argc < 2 )
   {
-    std::print( "please provide wasm file" );
+    std::println( "please provide wasm file" );
     return 1;
   }
 
-  std::print( "loading file: {}\n", argv[ 1 ] );
-  auto bytecode = read_file( argv[ 1 ] );
+  std::println( "loading file: {}", argv[ 1 ] );
+  auto bytecode = time( read_file, argv[ 1 ] );
 
   if( !bytecode.has_value() )
   {
@@ -71,59 +92,67 @@ auto main( int argc, char** argv ) -> int
     }
     return 1;
   }
-  std::print( "loaded with {} bytes\n", bytecode->size() );
+  std::println( "-> loaded with {} bytes", bytecode->size() );
 
   /* initialize the wasm runtime by default configurations */
   wasm_runtime_init();
 
   /* parse the WASM file from buffer and create a WASM module */
-  module = wasm_runtime_load( reinterpret_cast< uint8_t* >( bytecode->data() ),
-                              bytecode->size(),
-                              error_buf,
-                              sizeof( error_buf ) );
+  std::println( "wasm_runtime_load" );
+  module = time( wasm_runtime_load,
+                 reinterpret_cast< uint8_t* >( bytecode->data() ),
+                 bytecode->size(),
+                 error_buf,
+                 sizeof( error_buf ) );
+
   if( !module )
   {
-    std::print( stderr, "unable to load wasm runtime: {}\n", error_buf );
+    std::println( stderr, "unable to load wasm runtime: {}", error_buf );
     return 1;
   }
 
   /* create an instance of the WASM module (WASM linear memory is ready) */
-  module_inst = wasm_runtime_instantiate( module, stack_size, heap_size, error_buf, sizeof( error_buf ) );
+  std::println( "wasm_runtime_instantiate" );
+  module_inst = time( wasm_runtime_instantiate, module, stack_size, heap_size, error_buf, sizeof( error_buf ) );
   if( !module_inst )
   {
-    std::print( stderr, "unable to instantiate wasm runtime: {}\n", error_buf );
+    std::println( stderr, "unable to instantiate wasm runtime: {}", error_buf );
     return 1;
   }
 
   /* lookup a WASM function by its name, the function signature can NULL here */
-  func = wasm_runtime_lookup_function( module_inst, "_start" );
+  std::println( "wasm_runtime_lookup_function" );
+  func = time( wasm_runtime_lookup_function, module_inst, "_start" );
   if( !func )
   {
-    std::print( stderr, "unable to lookup function main()" );
+    std::println( stderr, "unable to lookup function main()" );
     return 1;
   }
 
   /* create an execution environment to execute the WASM functions */
-  exec_env = wasm_runtime_create_exec_env( module_inst, stack_size );
+  std::println( "wasm_runtime_create_exec_env" );
+  exec_env = time( wasm_runtime_create_exec_env, module_inst, stack_size );
   if( !exec_env )
   {
-    std::print( stderr, "unable to create wasm runtime execution environment" );
+    std::println( stderr, "unable to create wasm runtime execution environment" );
     return 1;
   }
 
-  auto start  = std::chrono::steady_clock::now();
-  auto retval = wasm_runtime_call_wasm( exec_env, func, 0, nullptr );
-  auto stop   = std::chrono::steady_clock::now();
+  std::println( "wasm_runtime_call_wasm" );
+  auto retval = time( wasm_runtime_call_wasm, exec_env, func, 0, nullptr );
 
   if( retval )
-  {
-    std::print( "returned successfully in {}s\n", ( stop - start ) / 1.0s );
-  }
+    std::println( "returned successfully" );
   else
-  {
-    std::print( "failed exceptionally with: {}, in {}s\n",
-                wasm_runtime_get_exception( module_inst ),
-                ( stop - start ) / 1.0s );
-  }
+    std::println( "failed exceptionally with: {}", wasm_runtime_get_exception( module_inst ) );
+
+  std::println( "wasm_runtime_call_wasm (100000 loop)" );
+  time(
+    [ & ]()
+    {
+      for( int i = 0; i < 100'000; i++ )
+        wasm_runtime_call_wasm( exec_env, func, 0, nullptr );
+    } );
+
   return 0;
 }
