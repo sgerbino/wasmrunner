@@ -81,13 +81,13 @@ auto main( int argc, char** argv ) -> int
     switch( bytecode.error() )
     {
       case file_error::not_found:
-        std::print( stderr, "could not find file" );
+        std::println( stderr, "could not find file" );
         break;
       case file_error::size_mismatch:
-        std::print( stderr, "file size mismatch" );
+        std::println( stderr, "file size mismatch" );
         break;
       default:
-        std::print( stderr, "an unknown error has occurred reading bytecode" );
+        std::println( stderr, "an unknown error has occurred reading bytecode" );
         break;
     }
     return 1;
